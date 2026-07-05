@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Gemini Canvas - Copy as Markdown
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Adds a "Copy as Markdown" button to the Canvas toolbar in Google Gemini
 // @author       Steve Hanov
 // @license      MIT
@@ -43,6 +43,9 @@
         if (node.nodeType !== Node.ELEMENT_NODE) return '';
 
         const tag = node.tagName.toLowerCase();
+        if (isMathNode(node)) {
+            return convertMath(node);
+        }
         const children = () => convertChildren(node);
 
         switch (tag) {
@@ -72,7 +75,7 @@
                 if (node.parentElement && node.parentElement.tagName.toLowerCase() === 'pre') {
                     return children();
                 }
-                return `\`${children()}\``;
+                return formatInlineCode(children());
             }
 
             case 'pre': {
@@ -101,7 +104,7 @@
 
             case 'a': {
                 const href = node.getAttribute('href') || '';
-                return `[${children()}](${href})`;
+                return `[${children().replace(/\]/g, '\\]')}](${href.replace(/\)/g, '%29')})`;
             }
 
             case 'img': {
@@ -119,6 +122,38 @@
             default:
                 return children();
         }
+    }
+
+    function isMathNode(node) {
+        return node.classList?.contains('math-node') ||
+            node.tagName.toLowerCase() === 'math-inline' ||
+            node.tagName.toLowerCase() === 'math-block';
+    }
+
+    function convertMath(node) {
+        const math = getMathSource(node);
+        const tag = node.tagName.toLowerCase();
+        const isBlock = tag === 'math-block' || node.classList.contains('math-block');
+        if (isBlock) {
+            return `\n$$\n${math}\n$$\n\n`;
+        }
+        return `$${math}$`;
+    }
+
+    function getMathSource(node) {
+        const source = node.getAttribute('data-math') ||
+            node.getAttribute('aria-label') ||
+            node.querySelector('.math-src')?.textContent ||
+            node.textContent;
+        return source.trim();
+    }
+
+    function formatInlineCode(text) {
+        const longestRun = Math.max(0, ...[...text.matchAll(/`+/g)].map(match => match[0].length));
+        const fence = '`'.repeat(longestRun + 1);
+        const needsPadding = text.startsWith('`') || text.endsWith('`');
+        const content = needsPadding ? ` ${text} ` : text;
+        return `${fence}${content}${fence}`;
     }
 
     function convertChildren(node) {
@@ -159,7 +194,7 @@
 
         const matrix = rows.map(row =>
             [...row.querySelectorAll('th, td')].map(cell =>
-                convertChildren(cell).trim().replace(/\n/g, ' ')
+                escapeTableCell(convertChildren(cell).trim())
             )
         );
 
@@ -181,6 +216,12 @@
             out += formatRow(matrix[i]) + '\n';
         }
         return out;
+    }
+
+    function escapeTableCell(text) {
+        return text
+            .replace(/\s*\n+\s*/g, '<br>')
+            .replace(/\|/g, '\\|');
     }
 
     // ── Button injection ───────────────────────────────────────────────

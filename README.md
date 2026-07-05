@@ -18,6 +18,7 @@ When Google Gemini opens a Canvas panel (the side editor for documents, code, et
 | Bold / Italic / Strikethrough | `**bold**` / `*italic*` / `~~strike~~` |
 | Ordered & unordered lists | `1.` / `-` (with nesting) |
 | Code blocks & inline code | Fenced ` ``` ` blocks / `` `inline` `` |
+| Formulas | `$inline$` / `$$` display blocks from Gemini math |
 | Blockquotes | `>` |
 | Tables | Pipe tables with header separator |
 | Links & images | `[text](url)` / `![alt](src)` |
